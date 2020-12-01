@@ -19,6 +19,10 @@ namespace PadelApiRest
                 routeTemplate: "api/{controller}/{id}",
                 defaults: new { id = RouteParameter.Optional }
             );
+
+            config.Routes.MapHttpRoute(
+                name: "MyRoute",
+                routeTemplate: "api/{controller}/login{username}&{password}");
         }
     }
 }

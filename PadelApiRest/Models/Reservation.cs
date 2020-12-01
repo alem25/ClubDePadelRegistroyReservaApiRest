@@ -1,10 +1,17 @@
-﻿namespace PadelApiRest.Models
+﻿using System;
+using System.ComponentModel.DataAnnotations;
+using System.Globalization;
+
+namespace PadelApiRest.Models
 {
     public class Reservation
     {
         public int rsvId { get; set; }
+        [Required]
+        [Range(1, 4, ErrorMessage = "Este campo sólo admite enteros del 1 al 4.")]
         public int courtId { get; set; }
-        public int rsvdateTime { get; set; }
+        [Required]
+        public long rsvdateTime { get; set; }
         public string rsvday { get; set; }
         public string rsvtime { get; set; }
 
@@ -13,13 +20,12 @@
 
         }
 
-        public Reservation(int rsvId, int courtId, int rsvdateTime, string rsvday, string rsvtime)
+        public Reservation(int courtId, long ticks)
         {
-            this.rsvId = rsvId;
             this.courtId = courtId;
-            this.rsvdateTime = rsvdateTime;
-            this.rsvday = rsvday;
-            this.rsvtime = rsvtime;
+            this.rsvday = DateTimeOffset.FromUnixTimeMilliseconds(ticks).LocalDateTime.ToString("yyyy/MM/dd");
+            this.rsvtime = DateTimeOffset.FromUnixTimeMilliseconds(ticks).LocalDateTime.ToString("HH:mm");
+            this.rsvdateTime = DateTimeOffset.Now.ToUnixTimeMilliseconds();
         }
     }
 }
