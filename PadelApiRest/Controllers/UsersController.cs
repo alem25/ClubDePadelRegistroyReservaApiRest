@@ -1,57 +1,29 @@
-﻿using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
-using PadelApiRest.Models;
+﻿using PadelApiRest.Models;
 using System;
-using System.Collections.Generic;
-using System.Data.SqlClient;
-using System.Linq;
 using System.Net;
 using System.Net.Http;
-using System.Text;
 using System.Web.Http;
-using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
-using Microsoft.IdentityModel.Tokens;
-using System.Configuration;
-using System.Diagnostics;
+using System.Linq;
 
 namespace PadelApiRest.Controllers
 {
     public class UsersController : ApiController
     {
         private const string ERROR = "Error del servidor.";
+        private ModeloContext db = new ModeloContext();
 
         // POST: api/users
         public HttpResponseMessage Post([FromBody]User user)
         {
-            if (user != null && !string.IsNullOrEmpty(user.Username) && !string.IsNullOrEmpty(user.Password) && !string.IsNullOrWhiteSpace(user.Email))
+            if (user != null && !string.IsNullOrEmpty(user.username) && !string.IsNullOrEmpty(user.password) && !string.IsNullOrWhiteSpace(user.email))
             {
-                HttpStatusCode result = HttpStatusCode.OK;
-                try
-                {
-                    string userr = Get(user.Username);
-                }
-                catch(HttpResponseException e)
-                {
-                    result = e.Response.StatusCode;
-                }
-                
-                if (result == HttpStatusCode.NotFound)
+                var usuarioDb = db.User.FirstOrDefault(u => u.username == user.username);
+                if (usuarioDb == null)
                 {
                     try
                     {
-                        User newUser = new User(user.Username, user.Email, user.Password, user.Phone, user.BirthDate);
-                        using (SqlConnection con = HomeController.ConnectToSql())
-                        {
-                            string query = "INSERT INTO [" + nameof(Models.User) + "] VALUES('" + newUser.Username + "', '" +
-                                newUser.Password + "', '" + newUser.Email + "', '" + newUser.Phone + "', '" + newUser.BirthDate + "')";
-                            using (SqlCommand command = new SqlCommand(query, con))
-                            {
-                                con.Open();
-                                int filasAfectadas = command.ExecuteNonQuery();
-                                Debug.WriteLine("Número de filas afectadas: " + filasAfectadas);
-                            }
-                        }
+                        db.User.Add(user);
+                        db.SaveChanges();
                     }
                     catch (Exception e)
                     {
@@ -71,37 +43,13 @@ namespace PadelApiRest.Controllers
         {
             if (!string.IsNullOrEmpty(username) && !string.IsNullOrEmpty(password))
             {
-                string content = Get(username);
-                if (content != null && content.Trim() != string.Empty && content.Trim() == username.Trim())
+                User user = db.User.FirstOrDefault(u => u.username == username);
+                if (user != null)
                 {
-                    string pass = string.Empty;
-                    try
-                    {
-                        using (SqlConnection con = HomeController.ConnectToSql())
-                        {
-                            string query = "SELECT " + nameof(Models.User.Password) + " FROM [" + nameof(Models.User) + "] WHERE " + nameof(Models.User.Username) + " = '" + username.ToUpper().Trim() + "'";
-                            using (SqlCommand command = new SqlCommand(query, con))
-                            {
-                                con.Open();
-                                SqlDataReader reader = command.ExecuteReader();
-                                while (reader.Read())
-                                {
-                                    pass = reader[nameof(Models.User.Password)].ToString();
-                                }
-                            }
-                        }
-                    }
-                    catch (Exception e)
-                    {
-                        throw HomeController.CreateResponseExceptionWithMsg(Request, HttpStatusCode.InternalServerError, string.Format("{0} - {1}", ERROR, e.Message));
-                    }
-                    if (pass != password)
+                    if (user.password != password)
                         throw HomeController.CreateResponseExceptionWithMsg(Request, HttpStatusCode.Unauthorized, "usuario o contraseña incorrecta");
                     else
-                    {
-                        HttpResponseMessage response = HomeController.CreateAuthorizationHeader(Request, username);
-                        return response;
-                    }
+                        return HomeController.CreateAuthorizationHeader(Request, username);
                 }
                 throw HomeController.CreateResponseExceptionWithMsg(Request, HttpStatusCode.NotFound, "el usuario no existe");
             }
@@ -110,28 +58,14 @@ namespace PadelApiRest.Controllers
 
         public string Get(string id)
         {
-            string user = string.Empty;
             if (!string.IsNullOrEmpty(id))
             {
                 try
                 {
-                    using (SqlConnection con = HomeController.ConnectToSql())
+                    User user = db.User.FirstOrDefault(u => u.username == id);
+                    if (user != null)
                     {
-                        string query = "SELECT " + nameof(Models.User.Username) + " FROM [" + nameof(Models.User) + "] WHERE " + nameof(Models.User.Username) + " = '" + id.ToUpper().Trim() + "'";
-                        using (SqlCommand command = new SqlCommand(query, con))
-                        {
-                            con.Open();
-                            SqlDataReader reader = command.ExecuteReader();
-                            while (reader.Read())
-                            {
-                                user = reader[nameof(Models.User.Username)].ToString();
-                            }
-                        }
-                    }
-                    if (!string.IsNullOrEmpty(user))
-                    {
-                        if (id.Trim().ToUpper() == user.Trim().ToUpper())
-                            return user;
+                        return user.username;
                     }
                 }
                 catch (Exception e)
@@ -150,16 +84,14 @@ namespace PadelApiRest.Controllers
             {
                 if (id == username)
                 {
-                    using (SqlConnection con = HomeController.ConnectToSql())
+                    var user = db.User.FirstOrDefault(u => u.username == username);
+                    if(user != null)
                     {
-                        string query = "DELETE [" + nameof(Models.User) + "] WHERE " + nameof(Models.User.Username) + " = '" + username + "'";
-                        using (SqlCommand command = new SqlCommand(query, con))
-                        {
-                            con.Open();
-                            int filasAfectadas = command.ExecuteNonQuery();
-                            Debug.WriteLine("Número de filas afectadas: " + filasAfectadas);
-                        }
+                        db.User.Remove(user);
+                        db.SaveChanges();
                     }
+                    else
+                        throw HomeController.CreateResponseExceptionWithMsg(Request, HttpStatusCode.NotFound, "usuario no encontrado");
                 }
                 else
                     throw HomeController.CreateResponseExceptionWithMsg(Request, HttpStatusCode.Unauthorized, "usuario no autorizado");

@@ -1,9 +1,6 @@
 ﻿using PadelApiRest.Models;
 using System;
 using System.Collections.Generic;
-using System.Configuration;
-using System.Data.SqlClient;
-using System.Diagnostics;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
@@ -14,6 +11,7 @@ namespace PadelApiRest.Controllers
     public class ReservationsController : ApiController
     {
         private const string ERROR = "Error del servidor.";
+        private ModeloContext db = new ModeloContext();
 
         // GET api/reservations
         public IEnumerable<Reservation> Get()
@@ -21,30 +19,9 @@ namespace PadelApiRest.Controllers
             HttpResponseMessage Response = HomeController.ValidateAuthorizationHeader(Request, out string username);
             try
             {
-                List<Reservation> reservations = new List<Reservation>();
-                using (SqlConnection con = HomeController.ConnectToSql())
-                {
-                    string query = "SELECT * FROM " + nameof(Reservation) + " WHERE username = '" + username + "'";
-                    using (SqlCommand command = new SqlCommand(query, con))
-                    {
-                        con.Open();
-                        SqlDataReader reader = command.ExecuteReader();
-                        while (reader.Read())
-                        {
-                            reservations.Add(new Reservation()
-                            {
-                                rsvId = Convert.ToInt32(reader[nameof(Reservation.rsvId)]),
-                                courtId = Convert.ToInt32(reader[nameof(Reservation.courtId)]),
-                                rsvdateTime = Convert.ToInt64(reader[nameof(Reservation.rsvdateTime)]),
-                                rsvday = reader[nameof(Reservation.rsvday)].ToString(),
-                                rsvtime = reader[nameof(Reservation.rsvtime)].ToString()
-                            });
-                        }
-                        return reservations;
-                    }
-                }
+                return db.Reservation.Where(r => r.username == username).ToList();
             }
-            catch(Exception e)
+            catch (Exception e)
             {
                 throw HomeController.CreateResponseExceptionWithMsg(Request, HttpStatusCode.InternalServerError, string.Format("{0} - {1}", ERROR, e.Message));
             }
@@ -56,29 +33,8 @@ namespace PadelApiRest.Controllers
             HttpResponseMessage Response = HomeController.ValidateAuthorizationHeader(Request, out string username);
             try
             {
-                var result = new List<Reservation>();
                 string day = DateTimeOffset.FromUnixTimeMilliseconds(id).LocalDateTime.ToString("yyyy/MM/dd");
-                using (SqlConnection con = HomeController.ConnectToSql())
-                {
-                    string query = "SELECT * FROM " + nameof(Reservation) + " WHERE " + nameof(Reservation.rsvday) + " = '" + day + "'";
-                    using (SqlCommand command = new SqlCommand(query, con))
-                    {
-                        con.Open();
-                        SqlDataReader reader = command.ExecuteReader();
-                        while (reader.Read())
-                        {
-                            result.Add(new Reservation()
-                            {
-                                rsvId = Convert.ToInt32(reader[nameof(Reservation.rsvId)]),
-                                courtId = Convert.ToInt32(reader[nameof(Reservation.courtId)]),
-                                rsvdateTime = Convert.ToInt64(reader[nameof(Reservation.rsvdateTime)]),
-                                rsvday = reader[nameof(Reservation.rsvday)].ToString(),
-                                rsvtime = reader[nameof(Reservation.rsvtime)].ToString()
-                            });
-                        }
-                    }
-                }
-                return result;
+                return db.Reservation.Where(r => r.rsvday == day).ToList();
             }
             catch(Exception e)
             {
@@ -94,26 +50,14 @@ namespace PadelApiRest.Controllers
             {
                 if (reservation != null && reservation.rsvdateTime != 0 && reservation.courtId > 0 && reservation.courtId < 5)
                 {
+                    var user = db.User.FirstOrDefault(u => u.username == username);
                     Reservation newReservation = new Reservation(reservation.courtId, reservation.rsvdateTime);
+                    newReservation.username = username;
                     List<Reservation> res = Get(reservation.rsvdateTime).ToList();
                     if(res.Any(r => r.courtId == newReservation.courtId && r.rsvday == newReservation.rsvday && r.rsvtime == newReservation.rsvtime))
                         throw HomeController.CreateResponseExceptionWithMsg(Request, HttpStatusCode.Conflict, "Esta pista está reservada para la fecha y hora indicada.");
-                    using (SqlConnection con = HomeController.ConnectToSql())
-                    {
-                        int reservaId = 0;
-                        string query = "INSERT INTO " + nameof(Reservation) + " OUTPUT INSERTED."+ nameof(Reservation.rsvId) +" VALUES(" + newReservation.courtId + ", " +
-                            newReservation.rsvdateTime + ", '" + newReservation.rsvday + "', '" + newReservation.rsvtime + "', '" + username + "')";
-                        using (SqlCommand command = new SqlCommand(query, con))
-                        {
-                            con.Open();
-                            SqlDataReader reader = command.ExecuteReader();
-                            while (reader.Read())
-                            {
-                                reservaId = Convert.ToInt32(reader[nameof(Reservation.rsvId)]);
-                            }
-                            con.Close();
-                        }
-                    }
+                    db.Reservation.Add(newReservation);
+                    db.SaveChanges();
                 }
             }
             catch(Exception e)
@@ -128,18 +72,16 @@ namespace PadelApiRest.Controllers
             HttpResponseMessage Response = HomeController.ValidateAuthorizationHeader(Request, out string username);
             try
             {
-                using (SqlConnection con = HomeController.ConnectToSql())
+                var reserva = db.Reservation.Where(r => r.rsvId == id && r.User.username == username).FirstOrDefault();
+                if (reserva != null)
                 {
-                    string query = "DELETE " + nameof(Reservation) + " WHERE " + nameof(Reservation.rsvId) + " = " + id + " AND username = '" + username + "'";
-                    using (SqlCommand command = new SqlCommand(query, con))
-                    {
-                        con.Open();
-                        int filasAfectadas = command.ExecuteNonQuery();
-                        Debug.WriteLine("Número de filas afectadas: " + filasAfectadas);
-                    }
+                    db.Reservation.Remove(reserva);
+                    db.SaveChanges();
                 }
+                else
+                    throw HomeController.CreateResponseExceptionWithMsg(Request, HttpStatusCode.NotFound, "reserva no encontrada");
             }
-            catch(Exception e)
+            catch (Exception e)
             {
                 throw HomeController.CreateResponseExceptionWithMsg(Request, HttpStatusCode.InternalServerError, string.Format("{0} - {1}", ERROR, e.Message));
             }
@@ -152,18 +94,16 @@ namespace PadelApiRest.Controllers
             HttpResponseMessage Response = HomeController.ValidateAuthorizationHeader(Request, out string username);
             try
             {
-                using (SqlConnection con = HomeController.ConnectToSql())
+                var reservas = db.Reservation.Where(r => r.User.username == username).ToList();
+                if(reservas.Count > 0)
                 {
-                    string query = "DELETE " + nameof(Reservation) + " WHERE username = '" + username + "'";
-                    using (SqlCommand command = new SqlCommand(query, con))
-                    {
-                        con.Open();
-                        int filasAfectadas = command.ExecuteNonQuery();
-                        Debug.WriteLine("Número de filas afectadas: " + filasAfectadas);
-                    }
+                    db.Reservation.RemoveRange(reservas);
+                    db.SaveChanges();
                 }
+                else
+                    throw HomeController.CreateResponseExceptionWithMsg(Request, HttpStatusCode.NotFound, "no hay reservas a tu nombre");
             }
-            catch(Exception e)
+            catch (Exception e)
             {
                 throw HomeController.CreateResponseExceptionWithMsg(Request, HttpStatusCode.InternalServerError, string.Format("{0} - {1}", ERROR, e.Message));
             }

@@ -1,29 +1,37 @@
-﻿using System;
-using System.Collections.Generic;
-
 namespace PadelApiRest.Models
 {
-    public class User
-    {
-        public string Username { get; set; }
-        public string Email { get; set; }
-        public string Password { get; set; }
-        public string Phone { get; set; }
-        public DateTime? BirthDate { get; set; }
-        public List<Reservation> Reservations { get; set; } = new List<Reservation>();
+    using Newtonsoft.Json;
+    using System.Collections.Generic;
+    using System.ComponentModel.DataAnnotations;
+    using System.ComponentModel.DataAnnotations.Schema;
 
+    [Table("User"), JsonObject( IsReference = true)]
+    public partial class User
+    {
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2214:DoNotCallOverridableMethodsInConstructors")]
         public User()
         {
-
+            Reservation = new HashSet<Reservation>();
         }
 
-        public User(string username, string email, string password, string phone = null, DateTime? birthDate = null)
-        {
-            this.Username = username;
-            this.Email = email;
-            this.Password = password;
-            this.Phone = phone;
-            this.BirthDate = birthDate;
-        }
+        [Key]
+        [StringLength(50)]
+        public string username { get; set; }
+
+        [Required]
+        [StringLength(50)]
+        public string password { get; set; }
+
+        [Required]
+        [StringLength(50)]
+        public string email { get; set; }
+
+        [StringLength(12)]
+        public string phone { get; set; }
+
+        public long birthdate { get; set; }
+
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2227:CollectionPropertiesShouldBeReadOnly")]
+        public virtual ICollection<Reservation> Reservation { get; set; }
     }
 }

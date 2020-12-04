@@ -1,27 +1,34 @@
-﻿using System;
-using System.ComponentModel.DataAnnotations;
-using System.Globalization;
-
 namespace PadelApiRest.Models
 {
-    public class Reservation
+    using Newtonsoft.Json;
+    using System;
+    using System.ComponentModel.DataAnnotations;
+    using System.ComponentModel.DataAnnotations.Schema;
+
+    [Table("Reservation"), JsonObject(IsReference = true)]
+    public partial class Reservation
     {
+        [DatabaseGenerated(DatabaseGeneratedOption.Identity), Key]
         public int rsvId { get; set; }
+
         [Required]
-        [Range(1, 4, ErrorMessage = "Este campo sólo admite enteros del 1 al 4.")]
         public int courtId { get; set; }
+
         [Required]
         public long rsvdateTime { get; set; }
+
+        [Required]
+        [StringLength(50)]
         public string rsvday { get; set; }
+
+        [Required]
+        [StringLength(50)]
         public string rsvtime { get; set; }
 
-        public User user { get; set; }
+        public string username { get; set; }
+        public virtual User User { get; set; }
 
-        public Reservation()
-        {
-
-        }
-
+        public Reservation() { }
         public Reservation(int courtId, long ticks)
         {
             this.courtId = courtId;
