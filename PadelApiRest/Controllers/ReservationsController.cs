@@ -13,80 +13,124 @@ namespace PadelApiRest.Controllers
 {
     public class ReservationsController : ApiController
     {
+        private const string ERROR = "Error del servidor.";
+
         // GET api/reservations
         public IEnumerable<Reservation> Get()
         {
-            string username = HomeController.GetAuthorizationHeaderUsername(Request);
-            HomeController.ValidateAuthorizationHeader(Request, username);
-            HomeController.CreateOrUpdateAuthorizationHeader(Request, username);
-            List<Reservation> reservations = new List<Reservation>();
-            using (SqlConnection con = HomeController.ConnectToSql())
+            HttpResponseMessage Response = HomeController.ValidateAuthorizationHeader(Request, out string username);
+            try
             {
-                string query = "SELECT * FROM " + nameof(Reservation) + "WHERE " + nameof(Reservation.rsvId) +
-                    " IN (SELECT " + nameof(Reservation.rsvId) + " FROM UserReservations WHERE " + nameof(Models.User.Username) + " = " + username + ")";
-                using (SqlCommand command = new SqlCommand(query, con))
+                List<Reservation> reservations = new List<Reservation>();
+                using (SqlConnection con = HomeController.ConnectToSql())
                 {
-                    con.Open();
-                    SqlDataReader reader = command.ExecuteReader();
-                    while (reader.Read())
+                    string query = "SELECT * FROM " + nameof(Reservation) + " WHERE username = '" + username + "'";
+                    using (SqlCommand command = new SqlCommand(query, con))
                     {
-                        reservations.Add(new Reservation()
+                        con.Open();
+                        SqlDataReader reader = command.ExecuteReader();
+                        while (reader.Read())
                         {
-                            rsvId = Convert.ToInt32(reader[nameof(Reservation.rsvId)]),
-                            courtId = Convert.ToInt32(reader[nameof(Reservation.courtId)]),
-                            rsvdateTime = Convert.ToInt64(reader[nameof(Reservation.rsvdateTime)]),
-                            rsvday = reader[nameof(Reservation.rsvday)].ToString(),
-                            rsvtime = reader[nameof(Reservation.rsvtime)].ToString()
-                        });
+                            reservations.Add(new Reservation()
+                            {
+                                rsvId = Convert.ToInt32(reader[nameof(Reservation.rsvId)]),
+                                courtId = Convert.ToInt32(reader[nameof(Reservation.courtId)]),
+                                rsvdateTime = Convert.ToInt64(reader[nameof(Reservation.rsvdateTime)]),
+                                rsvday = reader[nameof(Reservation.rsvday)].ToString(),
+                                rsvtime = reader[nameof(Reservation.rsvtime)].ToString()
+                            });
+                        }
+                        return reservations;
                     }
-                    return reservations;
                 }
+            }
+            catch(Exception e)
+            {
+                throw HomeController.CreateResponseExceptionWithMsg(Request, HttpStatusCode.InternalServerError, string.Format("{0} - {1}", ERROR, e.Message));
             }
         }
 
         // GET api/reservations/5
-        public Reservation Get(long unixTime)
+        public IEnumerable<Reservation> Get(long id)
         {
-            string username = HomeController.GetAuthorizationHeaderUsername(Request);
-            HomeController.ValidateAuthorizationHeader(Request, username);
-            HomeController.CreateOrUpdateAuthorizationHeader(Request, username);
-            string day = DateTimeOffset.FromUnixTimeMilliseconds(unixTime).LocalDateTime.ToString("yyyy/MM/dd");
-            using (SqlConnection con = HomeController.ConnectToSql())
+            HttpResponseMessage Response = HomeController.ValidateAuthorizationHeader(Request, out string username);
+            try
             {
-                string query = "SELECT * FROM " + nameof(Reservation) + " WHERE " + nameof(Reservation.rsvday) + " = " + day;
-                using (SqlCommand command = new SqlCommand(query, con))
+                var result = new List<Reservation>();
+                string day = DateTimeOffset.FromUnixTimeMilliseconds(id).LocalDateTime.ToString("yyyy/MM/dd");
+                using (SqlConnection con = HomeController.ConnectToSql())
                 {
-                    con.Open();
-                    SqlDataReader reader = command.ExecuteReader();
-                    while (reader.Read())
+                    string query = "SELECT * FROM " + nameof(Reservation) + " WHERE " + nameof(Reservation.rsvday) + " = '" + day + "'";
+                    using (SqlCommand command = new SqlCommand(query, con))
                     {
-                        return new Reservation()
+                        con.Open();
+                        SqlDataReader reader = command.ExecuteReader();
+                        while (reader.Read())
                         {
-                            rsvId = Convert.ToInt32(reader[nameof(Reservation.rsvId)]),
-                            courtId = Convert.ToInt32(reader[nameof(Reservation.courtId)]),
-                            rsvdateTime = Convert.ToInt64(reader[nameof(Reservation.rsvdateTime)]),
-                            rsvday = reader[nameof(Reservation.rsvday)].ToString(),
-                            rsvtime = reader[nameof(Reservation.rsvtime)].ToString()
-                        };
+                            result.Add(new Reservation()
+                            {
+                                rsvId = Convert.ToInt32(reader[nameof(Reservation.rsvId)]),
+                                courtId = Convert.ToInt32(reader[nameof(Reservation.courtId)]),
+                                rsvdateTime = Convert.ToInt64(reader[nameof(Reservation.rsvdateTime)]),
+                                rsvday = reader[nameof(Reservation.rsvday)].ToString(),
+                                rsvtime = reader[nameof(Reservation.rsvtime)].ToString()
+                            });
+                        }
                     }
                 }
+                return result;
             }
-            return null;
+            catch(Exception e)
+            {
+                throw HomeController.CreateResponseExceptionWithMsg(Request, HttpStatusCode.InternalServerError, string.Format("{0} - {1}", ERROR, e.Message));
+            }
         }
 
         // POST api/reservations
         public void Post([FromBody]Reservation reservation)
         {
-            string username = HomeController.GetAuthorizationHeaderUsername(Request);
-            HomeController.ValidateAuthorizationHeader(Request, username);
-            HomeController.CreateOrUpdateAuthorizationHeader(Request, username);
-            if (reservation != null && reservation.rsvdateTime != 0 && reservation.courtId != 0)
+            HttpResponseMessage Response = HomeController.ValidateAuthorizationHeader(Request, out string username);
+            try
             {
-                Reservation newReservation = new Reservation(reservation.courtId, reservation.rsvdateTime);
+                if (reservation != null && reservation.rsvdateTime != 0 && reservation.courtId > 0 && reservation.courtId < 5)
+                {
+                    Reservation newReservation = new Reservation(reservation.courtId, reservation.rsvdateTime);
+                    List<Reservation> res = Get(reservation.rsvdateTime).ToList();
+                    if(res.Any(r => r.courtId == newReservation.courtId && r.rsvday == newReservation.rsvday && r.rsvtime == newReservation.rsvtime))
+                        throw HomeController.CreateResponseExceptionWithMsg(Request, HttpStatusCode.Conflict, "Esta pista está reservada para la fecha y hora indicada.");
+                    using (SqlConnection con = HomeController.ConnectToSql())
+                    {
+                        int reservaId = 0;
+                        string query = "INSERT INTO " + nameof(Reservation) + " OUTPUT INSERTED."+ nameof(Reservation.rsvId) +" VALUES(" + newReservation.courtId + ", " +
+                            newReservation.rsvdateTime + ", '" + newReservation.rsvday + "', '" + newReservation.rsvtime + "', '" + username + "')";
+                        using (SqlCommand command = new SqlCommand(query, con))
+                        {
+                            con.Open();
+                            SqlDataReader reader = command.ExecuteReader();
+                            while (reader.Read())
+                            {
+                                reservaId = Convert.ToInt32(reader[nameof(Reservation.rsvId)]);
+                            }
+                            con.Close();
+                        }
+                    }
+                }
+            }
+            catch(Exception e)
+            {
+                throw HomeController.CreateResponseExceptionWithMsg(Request, HttpStatusCode.InternalServerError, string.Format("{0} - {1}", ERROR, e.Message));
+            }
+        }
+
+        [AcceptVerbs("DELETE")]
+        public HttpResponseMessage Delete(int id)
+        {
+            HttpResponseMessage Response = HomeController.ValidateAuthorizationHeader(Request, out string username);
+            try
+            {
                 using (SqlConnection con = HomeController.ConnectToSql())
                 {
-                    string query = "INSERT INTO " + nameof(Reservation) + " VALUES(" + newReservation.courtId + ", " +
-                        newReservation.rsvdateTime + ", '" + newReservation.rsvday + "', '" + newReservation.rsvtime + "')";
+                    string query = "DELETE " + nameof(Reservation) + " WHERE " + nameof(Reservation.rsvId) + " = " + id + " AND username = '" + username + "'";
                     using (SqlCommand command = new SqlCommand(query, con))
                     {
                         con.Open();
@@ -95,42 +139,35 @@ namespace PadelApiRest.Controllers
                     }
                 }
             }
+            catch(Exception e)
+            {
+                throw HomeController.CreateResponseExceptionWithMsg(Request, HttpStatusCode.InternalServerError, string.Format("{0} - {1}", ERROR, e.Message));
+            }
+            return Request.CreateResponse(HttpStatusCode.NoContent);
         }
 
-        // DELETE api/reservations/5
-        public void Delete(int id)
+        [AcceptVerbs("DELETE")]
+        public HttpResponseMessage Delete()
         {
-            string username = HomeController.GetAuthorizationHeaderUsername(Request);
-            HomeController.ValidateAuthorizationHeader(Request, username);
-            HomeController.CreateOrUpdateAuthorizationHeader(Request, username);
-            using (SqlConnection con = HomeController.ConnectToSql())
+            HttpResponseMessage Response = HomeController.ValidateAuthorizationHeader(Request, out string username);
+            try
             {
-                string query = "SELECT * FROM " + nameof(Reservation) + " WHERE " + nameof(Reservation.rsvId) + " = " + id;
-                using (SqlCommand command = new SqlCommand(query))
+                using (SqlConnection con = HomeController.ConnectToSql())
                 {
-                    con.Open();
-                    int filasAfectadas = command.ExecuteNonQuery();
-                    Debug.WriteLine("Número de filas afectadas: " + filasAfectadas);
+                    string query = "DELETE " + nameof(Reservation) + " WHERE username = '" + username + "'";
+                    using (SqlCommand command = new SqlCommand(query, con))
+                    {
+                        con.Open();
+                        int filasAfectadas = command.ExecuteNonQuery();
+                        Debug.WriteLine("Número de filas afectadas: " + filasAfectadas);
+                    }
                 }
             }
-        }
-
-        // DELETE api/reservations
-        public void Delete()
-        {
-            string username = HomeController.GetAuthorizationHeaderUsername(Request);
-            HomeController.ValidateAuthorizationHeader(Request, username);
-            HomeController.CreateOrUpdateAuthorizationHeader(Request, username);
-            using (SqlConnection con = HomeController.ConnectToSql())
+            catch(Exception e)
             {
-                string query = "SELECT * FROM " + nameof(Reservation);
-                using (SqlCommand command = new SqlCommand(query))
-                {
-                    con.Open();
-                    int filasAfectadas = command.ExecuteNonQuery();
-                    Debug.WriteLine("Número de filas afectadas: " + filasAfectadas);
-                }
+                throw HomeController.CreateResponseExceptionWithMsg(Request, HttpStatusCode.InternalServerError, string.Format("{0} - {1}", ERROR, e.Message));
             }
+            return Request.CreateResponse(HttpStatusCode.NoContent);
         }
     }
 }

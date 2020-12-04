@@ -21,8 +21,8 @@ namespace PadelApiRest
             );
 
             config.Routes.MapHttpRoute(
-                name: "MyRoute",
-                routeTemplate: "api/{controller}/login{username}&{password}");
+                name: "SecondApi",
+                routeTemplate: "api/{controller}/{action}");
         }
     }
 }
