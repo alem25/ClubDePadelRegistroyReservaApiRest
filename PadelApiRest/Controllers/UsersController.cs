@@ -4,6 +4,7 @@ using System.Net;
 using System.Net.Http;
 using System.Web.Http;
 using System.Linq;
+using System.Text;
 
 namespace PadelApiRest.Controllers
 {
@@ -22,6 +23,13 @@ namespace PadelApiRest.Controllers
                 {
                     try
                     {
+                        Random r = new Random(DateTimeOffset.Now.Millisecond);
+                        var salt = r.Next(1000,9999);
+                        byte[] bytes = Encoding.UTF8.GetBytes(user.password + salt);
+                        var crypto = System.Security.Cryptography.SHA256.Create();
+                        byte[] hash = crypto.ComputeHash(bytes);
+                        user.password = HomeController.ByteArrayToString(hash);
+                        user.salt = salt;
                         db.User.Add(user);
                         db.SaveChanges();
                     }
@@ -46,6 +54,10 @@ namespace PadelApiRest.Controllers
                 User user = db.User.FirstOrDefault(u => u.username == username);
                 if (user != null)
                 {
+                    byte[] bytes = Encoding.UTF8.GetBytes(password + user.salt);
+                    var crypto = System.Security.Cryptography.SHA256.Create();
+                    byte[] hash = crypto.ComputeHash(bytes);
+                    password = HomeController.ByteArrayToString(hash);
                     if (user.password != password)
                         throw HomeController.CreateResponseExceptionWithMsg(Request, HttpStatusCode.Unauthorized, "usuario o contraseña incorrecta");
                     else

@@ -19,8 +19,11 @@ namespace PadelApiRest.Models
         public string username { get; set; }
 
         [Required]
-        [StringLength(50)]
+        [StringLength(256)]
         public string password { get; set; }
+
+        [JsonIgnore]
+        public int? salt { get; set; }
 
         [Required]
         [StringLength(50)]
