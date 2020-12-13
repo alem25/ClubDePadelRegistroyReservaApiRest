@@ -26,6 +26,7 @@ namespace PadelApiRest.Models
         public string rsvtime { get; set; }
 
         public string username { get; set; }
+        [JsonIgnore]
         public virtual User User { get; set; }
 
         public Reservation() { }
