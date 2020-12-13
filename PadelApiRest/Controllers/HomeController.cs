@@ -25,15 +25,6 @@ namespace PadelApiRest.Controllers
             return View();
         }
 
-        public static SqlConnection ConnectToSql()
-        {
-            SqlConnection connection = new SqlConnection
-            {
-                ConnectionString = ConfigurationManager.ConnectionStrings["Default"].ConnectionString
-            };
-            return connection;
-        }
-
         public static HttpResponseMessage ValidateAuthorizationHeader(HttpRequestMessage Request, out string username)
         {
             username = string.Empty;

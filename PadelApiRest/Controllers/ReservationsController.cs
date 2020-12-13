@@ -1,9 +1,11 @@
-﻿using PadelApiRest.Models;
+﻿using Newtonsoft.Json;
+using PadelApiRest.Models;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Text;
 using System.Web.Http;
 
 namespace PadelApiRest.Controllers
@@ -36,12 +38,13 @@ namespace PadelApiRest.Controllers
         };
 
         // GET api/reservations
-        public IEnumerable<Reservation> Get()
+        public HttpResponseMessage Get()
         {
             HttpResponseMessage Response = HomeController.ValidateAuthorizationHeader(Request, out string username);
             try
             {
-                return db.Reservation.Where(r => r.username == username);
+                Response.Content = new StringContent(JsonConvert.SerializeObject(db.Reservation.Where(r => r.username == username)), Encoding.UTF8, "application/json");
+                return Response;
             }
             catch (Exception e)
             {
@@ -50,13 +53,14 @@ namespace PadelApiRest.Controllers
         }
 
         // GET api/reservations/5
-        public IEnumerable<Reservation> Get(long id)
+        public HttpResponseMessage Get(long id)
         {
             HttpResponseMessage Response = HomeController.ValidateAuthorizationHeader(Request, out string username);
             try
             {
                 string day = DateTimeOffset.FromUnixTimeMilliseconds(id).LocalDateTime.ToString("yyyy/MM/dd");
-                return db.Reservation.Where(r => r.rsvday == day).ToList();
+                Response.Content = new StringContent(JsonConvert.SerializeObject(db.Reservation.Where(r => r.rsvday == day).ToList()), Encoding.UTF8, "application/json");
+                return Response;
             }
             catch (Exception e)
             {
@@ -65,7 +69,7 @@ namespace PadelApiRest.Controllers
         }
 
         // POST api/reservations
-        public void Post([FromBody]Reservation reservation)
+        public HttpResponseMessage Post([FromBody]Reservation reservation)
         {
             HttpResponseMessage Response = HomeController.ValidateAuthorizationHeader(Request, out string username);
             if (reservation != null && reservation.rsvdateTime > DateTimeOffset.Now.ToUnixTimeMilliseconds() && courts.Contains(reservation.courtId))
@@ -75,18 +79,20 @@ namespace PadelApiRest.Controllers
                 newReservation.username = username;
                 if (horas.Contains(newReservation.rsvtime))
                 {
-                    List<Reservation> reservationsByDay = Get(reservation.rsvdateTime).ToList();
+                    List<Reservation> reservationsByDay = Get(reservation.rsvdateTime).Content.ReadAsAsync<Reservation[]>().Result.ToList();
                     if (reservationsByDay.Any(r => r.username == username && r.rsvday == newReservation.rsvday && r.rsvtime == newReservation.rsvtime))
                         throw HomeController.CreateResponseExceptionWithMsg(Request, HttpStatusCode.BadRequest, "Ya tienes otra reserva para el mismo día y hora indicada.");
                     if (reservationsByDay.Any(r => r.courtId == newReservation.courtId && r.rsvday == newReservation.rsvday && r.rsvtime == newReservation.rsvtime))
                         throw HomeController.CreateResponseExceptionWithMsg(Request, HttpStatusCode.BadRequest, "Esta pista está reservada para la fecha y hora indicada.");
-                    List<Reservation> userReservations = Get().ToList();
+                    List<Reservation> userReservations = Get().Content.ReadAsAsync<Reservation[]>().Result.ToList();
                     if (userReservations.Count > 3)
                         throw HomeController.CreateResponseExceptionWithMsg(Request, HttpStatusCode.Conflict, "Solo puedes realizar un máximo de 4 reservas.");
                     try
                     {
                         db.Reservation.Add(newReservation);
                         db.SaveChanges();
+                        Response.StatusCode = HttpStatusCode.OK;
+                        return Response;
                     }
                     catch (Exception e)
                     {
@@ -94,6 +100,7 @@ namespace PadelApiRest.Controllers
                     }
                 }
             }
+            return Request.CreateResponse(HttpStatusCode.BadRequest);
         }
 
         [AcceptVerbs("DELETE")]
@@ -115,7 +122,8 @@ namespace PadelApiRest.Controllers
             {
                 throw HomeController.CreateResponseExceptionWithMsg(Request, HttpStatusCode.InternalServerError, string.Format("{0} - {1}", ERROR, e.Message));
             }
-            return Request.CreateResponse(HttpStatusCode.NoContent);
+            Response.StatusCode = HttpStatusCode.NoContent;
+            return Response;
         }
 
         [AcceptVerbs("DELETE")]
@@ -137,7 +145,8 @@ namespace PadelApiRest.Controllers
             {
                 throw HomeController.CreateResponseExceptionWithMsg(Request, HttpStatusCode.InternalServerError, string.Format("{0} - {1}", ERROR, e.Message));
             }
-            return Request.CreateResponse(HttpStatusCode.NoContent);
+            Response.StatusCode = HttpStatusCode.NoContent;
+            return Response;
         }
     }
 }
