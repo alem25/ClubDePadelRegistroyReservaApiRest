@@ -187,10 +187,10 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
-    <Content Include="App_Data\reservations_db.mdf">
+    <Content Include="db\reservations_db.mdf">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
-    <Content Include="App_Data\reservations_db_log.ldf">
+    <Content Include="db\reservations_db_log.ldf">
       <DependentUpon>reservations_db.mdf</DependentUpon>
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>

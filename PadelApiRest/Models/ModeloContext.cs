@@ -1,12 +1,17 @@
 namespace PadelApiRest.Models
 {
+    using System;
     using System.Data.Entity;
 
     public partial class ModeloContext : DbContext
     {
-        public ModeloContext()
-            : base("name=Modelo")
+        public ModeloContext() : base(getConnectionString())
+        { }
+
+        public static string getConnectionString()
         {
+            string modelo_cs = System.Configuration.ConfigurationManager.ConnectionStrings["Modelo"].ConnectionString;
+            return modelo_cs.Replace("%rutaRelativa%", AppDomain.CurrentDomain.BaseDirectory);
         }
 
         public virtual DbSet<Reservation> Reservation { get; set; }
