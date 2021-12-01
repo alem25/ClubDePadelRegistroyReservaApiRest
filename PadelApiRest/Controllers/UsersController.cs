@@ -91,7 +91,7 @@ namespace PadelApiRest.Controllers
         [AcceptVerbs("DELETE")]
         public HttpResponseMessage Delete(string id)
         {
-            HttpResponseMessage Response = HomeController.ValidateAuthorizationHeader(Request, out string username);
+            HttpResponseMessage response = HomeController.ValidateAuthorizationHeader(Request, out string username);
             try
             {
                 if (id == username)

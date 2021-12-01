@@ -25,10 +25,10 @@ namespace PadelApiRest.Controllers
             return View();
         }
 
-        public static HttpResponseMessage ValidateAuthorizationHeader(HttpRequestMessage Request, out string username)
+        public static HttpResponseMessage ValidateAuthorizationHeader(HttpRequestMessage request, out string username)
         {
             username = string.Empty;
-            if (Request.Headers.TryGetValues("Authorization", out IEnumerable<string> values))
+            if (request.Headers.TryGetValues("Authorization", out IEnumerable<string> values))
             {
                 try
                 {
@@ -43,46 +43,31 @@ namespace PadelApiRest.Controllers
                         ValidateIssuer = false,
                         IssuerSigningKey = mySecretKey
                     }, out SecurityToken validatedToken);
-                    if (claims.FindFirst("username") != null && claims.FindFirst("username").Value.Trim() != string.Empty)
+                    if (claims.FindFirst("user") != null && claims.FindFirst("user").Value.Trim() != string.Empty)
                     {
-                        username = claims.FindFirst("username").Value.Trim();
-                        HttpResponseMessage response = Request.CreateResponse();
-                        var newClaims = new Dictionary<string, object> { { "username", username } };
-                        DateTime today = DateTime.Now;
-                        JwtSecurityToken token = jwth.CreateJwtSecurityToken(
-                            issuer: "PadelApiRest",
-                            audience: "PadelApiRest",
-                            subject: null,
-                            notBefore: today,
-                            expires: today.AddMinutes(10),
-                            issuedAt: today,
-                            signingCredentials: new SigningCredentials(mySecretKey, SecurityAlgorithms.HmacSha256Signature),
-                            encryptingCredentials: null,
-                            claimCollection: newClaims
-                            );
-                        response.Headers.Add("Authorization", "Bearer " + jwth.WriteToken(token));
-                        return response;
+                        username = claims.FindFirst("user").Value.Trim();
+                        return CreateAuthorizationHeader(request, username);
                     }
                 }
                 catch
                 {
-                    throw CreateResponseExceptionWithMsg(Request, HttpStatusCode.Unauthorized, NO_AUTORIZADO);
+                    throw CreateResponseExceptionWithMsg(request, HttpStatusCode.Unauthorized, NO_AUTORIZADO);
                 }
             }
-            throw CreateResponseExceptionWithMsg(Request, HttpStatusCode.Unauthorized, NO_AUTORIZADO);
+            throw CreateResponseExceptionWithMsg(request, HttpStatusCode.Unauthorized, NO_AUTORIZADO);
         }
 
-        public static HttpResponseMessage CreateAuthorizationHeader(HttpRequestMessage Request, string username)
+        public static HttpResponseMessage CreateAuthorizationHeader(HttpRequestMessage request, string username)
         {
             try
             {
-                if (Request.Headers.TryGetValues("Authorization", out IEnumerable<string> values))
-                    Request.Headers.Remove("Authorization");
+                if (request.Headers.TryGetValues("Authorization", out IEnumerable<string> values))
+                    request.Headers.Remove("Authorization");
 
                 SymmetricSecurityKey mySecretKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(MY_SECRET));
                 JwtSecurityTokenHandler jwth = new JwtSecurityTokenHandler();
-                HttpResponseMessage response = Request.CreateResponse();
-                var newClaims = new Dictionary<string, object> { { "username", username } };
+                HttpResponseMessage response = request.CreateResponse();
+                var newClaims = new Dictionary<string, object> { { "user", username } };
                 DateTime today = DateTime.Now;
                 JwtSecurityToken token = jwth.CreateJwtSecurityToken(
                     issuer: "PadelApiRest",
@@ -100,7 +85,7 @@ namespace PadelApiRest.Controllers
             }
             catch
             {
-                throw CreateResponseExceptionWithMsg(Request, HttpStatusCode.InternalServerError, ERROR);
+                throw CreateResponseExceptionWithMsg(request, HttpStatusCode.InternalServerError, ERROR);
             }
         }
 

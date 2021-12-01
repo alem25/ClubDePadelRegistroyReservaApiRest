@@ -40,11 +40,12 @@ namespace PadelApiRest.Controllers
         // GET api/reservations
         public HttpResponseMessage Get()
         {
-            HttpResponseMessage Response = HomeController.ValidateAuthorizationHeader(Request, out string username);
+            HttpResponseMessage response = HomeController.ValidateAuthorizationHeader(Request, out string username);
             try
             {
-                Response.Content = new StringContent(JsonConvert.SerializeObject(db.Reservation.Where(r => r.username == username)), Encoding.UTF8, "application/json");
-                return Response;
+                var userReservations = db.Reservation.Where(r => r.username == username);
+                response.Content = new StringContent(JsonConvert.SerializeObject(userReservations), Encoding.UTF8, "application/json");
+                return response;
             }
             catch (Exception e)
             {
@@ -55,12 +56,13 @@ namespace PadelApiRest.Controllers
         // GET api/reservations/5
         public HttpResponseMessage Get(long id)
         {
-            HttpResponseMessage Response = HomeController.ValidateAuthorizationHeader(Request, out string username);
+            HttpResponseMessage response = HomeController.ValidateAuthorizationHeader(Request, out string username);
             try
             {
                 string day = DateTimeOffset.FromUnixTimeMilliseconds(id).LocalDateTime.ToString("yyyy/MM/dd");
-                Response.Content = new StringContent(JsonConvert.SerializeObject(db.Reservation.Where(r => r.rsvday == day).ToList()), Encoding.UTF8, "application/json");
-                return Response;
+                var reservationsByDay = db.Reservation.Where(r => r.rsvday == day).ToList();
+                response.Content = new StringContent(JsonConvert.SerializeObject(reservationsByDay), Encoding.UTF8, "application/json");
+                return response;
             }
             catch (Exception e)
             {
@@ -71,7 +73,7 @@ namespace PadelApiRest.Controllers
         // POST api/reservations
         public HttpResponseMessage Post([FromBody]Reservation reservation)
         {
-            HttpResponseMessage Response = HomeController.ValidateAuthorizationHeader(Request, out string username);
+            HttpResponseMessage response = HomeController.ValidateAuthorizationHeader(Request, out string username);
             if (reservation != null && reservation.rsvdateTime > DateTimeOffset.Now.ToUnixTimeMilliseconds() && courts.Contains(reservation.courtId))
             {
                 var user = db.User.FirstOrDefault(u => u.username == username);
@@ -79,20 +81,21 @@ namespace PadelApiRest.Controllers
                 newReservation.username = username;
                 if (horas.Contains(newReservation.rsvtime))
                 {
-                    List<Reservation> reservationsByDay = Get(reservation.rsvdateTime).Content.ReadAsAsync<Reservation[]>().Result.ToList();
+                    string day = DateTimeOffset.FromUnixTimeMilliseconds(reservation.rsvdateTime).LocalDateTime.ToString("yyyy/MM/dd");
+                    var reservationsByDay = db.Reservation.Where(r => r.rsvday == day).ToList();
                     if (reservationsByDay.Any(r => r.username == username && r.rsvday == newReservation.rsvday && r.rsvtime == newReservation.rsvtime))
                         throw HomeController.CreateResponseExceptionWithMsg(Request, HttpStatusCode.BadRequest, "Ya tienes otra reserva para el mismo día y hora indicada.");
                     if (reservationsByDay.Any(r => r.courtId == newReservation.courtId && r.rsvday == newReservation.rsvday && r.rsvtime == newReservation.rsvtime))
                         throw HomeController.CreateResponseExceptionWithMsg(Request, HttpStatusCode.BadRequest, "Esta pista está reservada para la fecha y hora indicada.");
-                    List<Reservation> userReservations = Get().Content.ReadAsAsync<Reservation[]>().Result.ToList();
+                    var userReservations = db.Reservation.Where(r => r.username == username).ToList();
                     if (userReservations.Count > 3)
                         throw HomeController.CreateResponseExceptionWithMsg(Request, HttpStatusCode.Conflict, "Solo puedes realizar un máximo de 4 reservas.");
                     try
                     {
                         db.Reservation.Add(newReservation);
                         db.SaveChanges();
-                        Response.StatusCode = HttpStatusCode.OK;
-                        return Response;
+                        response.StatusCode = HttpStatusCode.OK;
+                        return response;
                     }
                     catch (Exception e)
                     {
@@ -106,7 +109,7 @@ namespace PadelApiRest.Controllers
         [AcceptVerbs("DELETE")]
         public HttpResponseMessage Delete(int id)
         {
-            HttpResponseMessage Response = HomeController.ValidateAuthorizationHeader(Request, out string username);
+            HttpResponseMessage response = HomeController.ValidateAuthorizationHeader(Request, out string username);
             try
             {
                 var reserva = db.Reservation.Where(r => r.rsvId == id && r.User.username == username).FirstOrDefault();
@@ -122,14 +125,14 @@ namespace PadelApiRest.Controllers
             {
                 throw HomeController.CreateResponseExceptionWithMsg(Request, HttpStatusCode.InternalServerError, string.Format("{0} - {1}", ERROR, e.Message));
             }
-            Response.StatusCode = HttpStatusCode.NoContent;
-            return Response;
+            response.StatusCode = HttpStatusCode.NoContent;
+            return response;
         }
 
         [AcceptVerbs("DELETE")]
         public HttpResponseMessage Delete()
         {
-            HttpResponseMessage Response = HomeController.ValidateAuthorizationHeader(Request, out string username);
+            HttpResponseMessage response = HomeController.ValidateAuthorizationHeader(Request, out string username);
             try
             {
                 var reservas = db.Reservation.Where(r => r.User.username == username).ToList();
@@ -145,8 +148,8 @@ namespace PadelApiRest.Controllers
             {
                 throw HomeController.CreateResponseExceptionWithMsg(Request, HttpStatusCode.InternalServerError, string.Format("{0} - {1}", ERROR, e.Message));
             }
-            Response.StatusCode = HttpStatusCode.NoContent;
-            return Response;
+            response.StatusCode = HttpStatusCode.NoContent;
+            return response;
         }
     }
 }
