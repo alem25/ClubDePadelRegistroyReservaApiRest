@@ -1,29 +1,76 @@
 namespace PadelApiRest.Models
 {
     using System;
+    using System.Data.SqlClient;
+    using System.Data.SQLite;
     using System.Data.Entity;
     using System.Data.Common;
+    using System.Configuration;
+    using Newtonsoft.Json.Linq;
+    using System.IO;
+    using MySql.Data.MySqlClient;
 
     public partial class ModeloContext : DbContext
     {
-        public ModeloContext() : base(getConnectionString(), true)
+        public ModeloContext() : base(GetConnectionString(), true)
         { }
 
-        public static DbConnection getConnectionString()
+        public static DbConnection GetConnectionString()
         {
-            string base_de_datos_elegida = System.Configuration.ConfigurationManager.AppSettings["database"];
-            string modelo_cs = System.Configuration.ConfigurationManager.ConnectionStrings[base_de_datos_elegida].ConnectionString;
-            modelo_cs = modelo_cs.Replace("%rutaRelativa%", AppDomain.CurrentDomain.BaseDirectory);
+            string base_de_datos_elegida = ConfigurationManager.AppSettings["database"];
+            string currentDirectory = AppDomain.CurrentDomain.BaseDirectory;
+            string jsonFilePath = string.Format("{0}credenciales.json", currentDirectory);
+            JObject data = JObject.Parse(File.ReadAllText(jsonFilePath));
+            string cs = data[base_de_datos_elegida].ToString();
+            cs = cs.Replace("%rutaRelativa%", AppDomain.CurrentDomain.BaseDirectory);
             if (base_de_datos_elegida == "SQLITE")
             {
-                return new System.Data.SQLite.SQLiteConnection(modelo_cs);
+                var conn = new SQLiteConnection(cs);
+                try
+                {
+                    conn.Open();
+                    return conn;
+                }
+                catch (Exception ex) 
+                {
+                    CredencialesIncorrectas(ex.Message);
+                }
             }
-            else if (base_de_datos_elegida == "LOCALDB")
+            else if (base_de_datos_elegida == "LOCALDB" || base_de_datos_elegida == "SQLSERVER")
             {
-                return new System.Data.SqlClient.SqlConnection(modelo_cs);
+                var conn = new SqlConnection(cs);
+                try
+                {
+                    conn.Open();
+                    return conn;
+                }
+                catch (Exception ex) 
+                {
+                    CredencialesIncorrectas(ex.Message);
+                }
             }
-            else
-                throw new Exception("No se ha elegido una base de datos compatible");
+            else if (base_de_datos_elegida == "MYSQL" || base_de_datos_elegida == "MARIADB")
+            {
+                var conn = new MySqlConnection(cs);
+                try
+                {
+                    conn.Open();
+                    return conn;
+                }
+                catch (Exception ex)
+                {
+                    CredencialesIncorrectas(ex.Message);
+                }
+            }
+            throw new Exception("No se ha elegido una base de datos compatible");
+        }
+
+        private static Exception CredencialesIncorrectas(string msg)
+        {
+            string mensaje = "Las credenciales de la base de datos elegida no son válidas. ";
+            if (!string.IsNullOrEmpty(msg))
+                mensaje = string.Format("{0} Error: {1}", mensaje, msg);
+            throw new Exception(mensaje);
         }
 
         public virtual DbSet<Reservation> Reservation { get; set; }

@@ -33,3 +33,4 @@ packages/
 *.mdf
 *.ldf
 *.sqlite
+credenciales.json
