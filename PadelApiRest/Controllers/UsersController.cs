@@ -8,6 +8,7 @@ using System.Text;
 
 namespace PadelApiRest.Controllers
 {
+    [RoutePrefix("api/users")]
     public class UsersController : ApiController
     {
         private const string ERROR = "Error del servidor.";
@@ -39,7 +40,7 @@ namespace PadelApiRest.Controllers
             return Request.CreateResponse(HttpStatusCode.BadRequest, "usuario no válido");
         }
 
-        [Route("api/users/Login"), AcceptVerbs("GET")]
+        [Route("Login"), AcceptVerbs("GET")]
         public HttpResponseMessage Login(string username, string password)
         {
             if (!string.IsNullOrEmpty(username) && !string.IsNullOrEmpty(password))
@@ -57,6 +58,7 @@ namespace PadelApiRest.Controllers
             return Request.CreateResponse(HttpStatusCode.BadRequest, "usuario o contraseña vacía");
         }
 
+        [AcceptVerbs("GET"), Route("{id}")]
         public HttpResponseMessage Get(string id)
         {
             if (!string.IsNullOrEmpty(id))
@@ -77,7 +79,7 @@ namespace PadelApiRest.Controllers
             return Request.CreateResponse(HttpStatusCode.NotFound, "usuario no encontrado");
         }
 
-        [AcceptVerbs("DELETE")]
+        [AcceptVerbs("DELETE"), Route("{id}")]
         public HttpResponseMessage Delete(string id)
         {
             HttpResponseMessage response = HomeController.ValidateAuthorizationHeader(Request, out string username);

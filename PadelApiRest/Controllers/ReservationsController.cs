@@ -9,6 +9,7 @@ using System.Web.Http;
 
 namespace PadelApiRest.Controllers
 {
+    [RoutePrefix("api/reservations")]
     public class ReservationsController : ApiController
     {
         private const string ERROR = "Error del servidor.";
@@ -52,7 +53,7 @@ namespace PadelApiRest.Controllers
             }
         }
 
-        // GET api/reservations/5
+        [AcceptVerbs("GET"), Route("{id}")]
         public HttpResponseMessage Get(long id)
         {
             HttpResponseMessage response = HomeController.ValidateAuthorizationHeader(Request, out string username);
@@ -105,8 +106,8 @@ namespace PadelApiRest.Controllers
             return Request.CreateResponse(HttpStatusCode.BadRequest);
         }
 
-        [AcceptVerbs("DELETE")]
-        public HttpResponseMessage Delete(int id)
+        [AcceptVerbs("DELETE"), Route("{id}")]
+        public HttpResponseMessage Delete(long id)
         {
             HttpResponseMessage response = HomeController.ValidateAuthorizationHeader(Request, out string username);
             try
