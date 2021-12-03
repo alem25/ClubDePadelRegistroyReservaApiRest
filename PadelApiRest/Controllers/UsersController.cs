@@ -23,27 +23,20 @@ namespace PadelApiRest.Controllers
                 {
                     try
                     {
-                        Random r = new Random(DateTimeOffset.Now.Millisecond);
-                        var salt = r.Next(1000,9999);
-                        byte[] bytes = Encoding.UTF8.GetBytes(user.password + salt);
-                        var crypto = System.Security.Cryptography.SHA256.Create();
-                        byte[] hash = crypto.ComputeHash(bytes);
-                        user.password = HomeController.ByteArrayToString(hash);
-                        user.salt = salt;
+                        user.salt = HomeController.CreateSalt();
+                        user.password = HomeController.HashPassword(user.password, user.salt);
                         db.User.Add(user);
                         db.SaveChanges();
+                        return Request.CreateResponse(HttpStatusCode.Created);
                     }
                     catch (Exception e)
                     {
-                        throw HomeController.CreateResponseExceptionWithMsg(Request, HttpStatusCode.InternalServerError, string.Format("{0} - {1}", ERROR, e.Message));
+                        return Request.CreateResponse(HttpStatusCode.InternalServerError, string.Format("{0} - {1}", ERROR, e.Message));
                     }
-                    return Request.CreateResponse(HttpStatusCode.Created);
                 }
-                else
-                    throw HomeController.CreateResponseExceptionWithMsg(Request, HttpStatusCode.Conflict, "usuario duplicado");
+                return Request.CreateResponse(HttpStatusCode.Conflict, "usuario duplicado");
             }
-            else
-                throw HomeController.CreateResponseExceptionWithMsg(Request, HttpStatusCode.BadRequest, "usuario no válido");
+            return Request.CreateResponse(HttpStatusCode.BadRequest, "usuario no válido");
         }
 
         [Route("api/users/Login"), AcceptVerbs("GET")]
@@ -54,21 +47,17 @@ namespace PadelApiRest.Controllers
                 User user = db.User.FirstOrDefault(u => u.username == username);
                 if (user != null)
                 {
-                    byte[] bytes = Encoding.UTF8.GetBytes(password + user.salt);
-                    var crypto = System.Security.Cryptography.SHA256.Create();
-                    byte[] hash = crypto.ComputeHash(bytes);
-                    password = HomeController.ByteArrayToString(hash);
-                    if (user.password != password)
-                        throw HomeController.CreateResponseExceptionWithMsg(Request, HttpStatusCode.Unauthorized, "usuario o contraseña incorrecta");
-                    else
+                    if (HomeController.ComparePasswords(user.password, user.salt, password))
                         return HomeController.CreateAuthorizationHeader(Request, username);
+                    else
+                        return Request.CreateResponse(HttpStatusCode.Unauthorized, "usuario o contraseña incorrecta");
                 }
-                throw HomeController.CreateResponseExceptionWithMsg(Request, HttpStatusCode.NotFound, "el usuario no existe");
+                return Request.CreateResponse(HttpStatusCode.NotFound, "el usuario no existe");
             }
-            throw HomeController.CreateResponseExceptionWithMsg(Request, HttpStatusCode.BadRequest, "usuario o contraseña vacía");
+            return Request.CreateResponse(HttpStatusCode.BadRequest, "usuario o contraseña vacía");
         }
 
-        public string Get(string id)
+        public HttpResponseMessage Get(string id)
         {
             if (!string.IsNullOrEmpty(id))
             {
@@ -77,15 +66,15 @@ namespace PadelApiRest.Controllers
                     User user = db.User.FirstOrDefault(u => u.username == id);
                     if (user != null)
                     {
-                        return user.username;
+                        return Request.CreateResponse(user.username);
                     }
                 }
                 catch (Exception e)
                 {
-                    throw HomeController.CreateResponseExceptionWithMsg(Request, HttpStatusCode.InternalServerError, string.Format("{0} - {1}", ERROR, e.Message));
+                    return Request.CreateResponse(HttpStatusCode.InternalServerError, string.Format("{0} - {1}", ERROR, e.Message));
                 }
             }
-            throw HomeController.CreateResponseExceptionWithMsg(Request, HttpStatusCode.NotFound, "usuario no encontrado");
+            return Request.CreateResponse(HttpStatusCode.NotFound, "usuario no encontrado");
         }
 
         [AcceptVerbs("DELETE")]
@@ -97,22 +86,19 @@ namespace PadelApiRest.Controllers
                 if (id == username)
                 {
                     var user = db.User.FirstOrDefault(u => u.username == username);
-                    if(user != null)
-                    {
-                        db.User.Remove(user);
-                        db.SaveChanges();
-                    }
-                    else
-                        throw HomeController.CreateResponseExceptionWithMsg(Request, HttpStatusCode.NotFound, "usuario no encontrado");
+                    if (user == null)
+                        return Request.CreateResponse(HttpStatusCode.NotFound, "usuario no encontrado");
+                    db.User.Remove(user);
+                    db.SaveChanges();
+                    response.StatusCode = HttpStatusCode.NoContent;
+                    return response;
                 }
-                else
-                    throw HomeController.CreateResponseExceptionWithMsg(Request, HttpStatusCode.Unauthorized, "usuario no autorizado");
+                return Request.CreateResponse(HttpStatusCode.Unauthorized, "usuario no autorizado");
             }
             catch (Exception e)
             {
-                throw HomeController.CreateResponseExceptionWithMsg(Request, HttpStatusCode.InternalServerError, string.Format("{0} - {1}", ERROR, e.Message));
+                return Request.CreateResponse(HttpStatusCode.InternalServerError, string.Format("{0} - {1}", ERROR, e.Message));
             }
-            return Request.CreateResponse(HttpStatusCode.NoContent);
         }
     }
 }

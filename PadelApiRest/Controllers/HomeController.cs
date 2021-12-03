@@ -2,13 +2,11 @@
 using System;
 using System.Collections.Generic;
 using System.Configuration;
-using System.Data.SqlClient;
 using System.IdentityModel.Tokens.Jwt;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Text;
-using System.Web.Http;
 using System.Web.Mvc;
 
 namespace PadelApiRest.Controllers
@@ -17,7 +15,7 @@ namespace PadelApiRest.Controllers
     {
         private const string NO_AUTORIZADO = "Usuario no autorizado.";
         private const string ERROR = "Error del servidor.";
-        private static string MY_SECRET = ConfigurationManager.AppSettings.Get("securityKey");
+        private static readonly string MY_SECRET = ConfigurationManager.AppSettings.Get("securityKey");
 
         public ActionResult Index()
         {
@@ -51,10 +49,10 @@ namespace PadelApiRest.Controllers
                 }
                 catch
                 {
-                    throw CreateResponseExceptionWithMsg(request, HttpStatusCode.Unauthorized, NO_AUTORIZADO);
+                    return request.CreateResponse(HttpStatusCode.Unauthorized, NO_AUTORIZADO);
                 }
             }
-            throw CreateResponseExceptionWithMsg(request, HttpStatusCode.Unauthorized, NO_AUTORIZADO);
+            return request.CreateResponse(HttpStatusCode.Unauthorized, NO_AUTORIZADO);
         }
 
         public static HttpResponseMessage CreateAuthorizationHeader(HttpRequestMessage request, string username)
@@ -63,36 +61,35 @@ namespace PadelApiRest.Controllers
             {
                 if (request.Headers.TryGetValues("Authorization", out IEnumerable<string> values))
                     request.Headers.Remove("Authorization");
-
-                SymmetricSecurityKey mySecretKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(MY_SECRET));
-                JwtSecurityTokenHandler jwth = new JwtSecurityTokenHandler();
-                HttpResponseMessage response = request.CreateResponse();
-                var newClaims = new Dictionary<string, object> { { "user", username } };
-                DateTime today = DateTime.Now;
-                JwtSecurityToken token = jwth.CreateJwtSecurityToken(
-                    issuer: "PadelApiRest",
-                    audience: "PadelApiRest",
-                    subject: null,
-                    notBefore: today,
-                    expires: today.AddMinutes(10),
-                    issuedAt: today,
-                    signingCredentials: new SigningCredentials(mySecretKey, SecurityAlgorithms.HmacSha256Signature),
-                    encryptingCredentials: null,
-                    claimCollection: newClaims
-                    );
-                response.Headers.Add("Authorization", "Bearer " + jwth.WriteToken(token));
+                string bearer = GenerateNewToken(username);
+                var response = request.CreateResponse();
+                response.Headers.Add("Authorization", bearer);
                 return response;
             }
             catch
             {
-                throw CreateResponseExceptionWithMsg(request, HttpStatusCode.InternalServerError, ERROR);
+                return request.CreateResponse(HttpStatusCode.InternalServerError, ERROR);
             }
         }
 
-        public static HttpResponseException CreateResponseExceptionWithMsg(HttpRequestMessage Request, HttpStatusCode statusCode, string message)
+        public static string GenerateNewToken(string username)
         {
-            HttpResponseMessage errorResponse = Request.CreateResponse(statusCode, message);
-            return new HttpResponseException(errorResponse);
+            SymmetricSecurityKey mySecretKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(MY_SECRET));
+            JwtSecurityTokenHandler jwth = new JwtSecurityTokenHandler();
+            var newClaims = new Dictionary<string, object> { { "user", username } };
+            DateTime today = DateTime.Now;
+            JwtSecurityToken token = jwth.CreateJwtSecurityToken(
+                issuer: "PadelApiRest",
+                audience: "PadelApiRest",
+                subject: null,
+                notBefore: today,
+                expires: today.AddMinutes(10),
+                issuedAt: today,
+                signingCredentials: new SigningCredentials(mySecretKey, SecurityAlgorithms.HmacSha256Signature),
+                encryptingCredentials: null,
+                claimCollection: newClaims
+                );
+            return "Bearer " + jwth.WriteToken(token);
         }
 
         public static string ByteArrayToString(byte[] ba)
@@ -101,6 +98,29 @@ namespace PadelApiRest.Controllers
             foreach (byte b in ba)
                 hex.AppendFormat("{0:x2}", b);
             return hex.ToString();
+        }
+
+        public static bool ComparePasswords(string hash, int? salt, string password)
+        {
+            byte[] bytes = Encoding.UTF8.GetBytes(password + salt);
+            var crypto = System.Security.Cryptography.SHA256.Create();
+            byte[] arrayBytesPassword = crypto.ComputeHash(bytes);
+            string hashedPassword = ByteArrayToString(arrayBytesPassword);
+            return hashedPassword == hash;
+        }
+
+        public static int CreateSalt()
+        {
+            Random r = new Random(DateTimeOffset.Now.Millisecond);
+            return r.Next(1000, 9999);
+        }
+
+        public static string HashPassword(string password, int? salt)
+        {
+            byte[] bytes = Encoding.UTF8.GetBytes(password + salt);
+            var crypto = System.Security.Cryptography.SHA256.Create();
+            byte[] hash = crypto.ComputeHash(bytes);
+            return ByteArrayToString(hash);
         }
     }
 }

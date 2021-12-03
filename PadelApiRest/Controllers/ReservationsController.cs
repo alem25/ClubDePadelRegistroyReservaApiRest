@@ -1,7 +1,6 @@
 ﻿using Newtonsoft.Json;
 using PadelApiRest.Models;
 using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
@@ -49,7 +48,7 @@ namespace PadelApiRest.Controllers
             }
             catch (Exception e)
             {
-                throw HomeController.CreateResponseExceptionWithMsg(Request, HttpStatusCode.InternalServerError, string.Format("{0} - {1}", ERROR, e.Message));
+                return Request.CreateResponse(HttpStatusCode.InternalServerError, string.Format("{0} - {1}", ERROR, e.Message));
             }
         }
 
@@ -66,7 +65,7 @@ namespace PadelApiRest.Controllers
             }
             catch (Exception e)
             {
-                throw HomeController.CreateResponseExceptionWithMsg(Request, HttpStatusCode.InternalServerError, string.Format("{0} - {1}", ERROR, e.Message));
+                return Request.CreateResponse(HttpStatusCode.InternalServerError, string.Format("{0} - {1}", ERROR, e.Message));
             }
         }
 
@@ -84,12 +83,12 @@ namespace PadelApiRest.Controllers
                     string day = DateTimeOffset.FromUnixTimeMilliseconds(reservation.rsvdateTime).LocalDateTime.ToString("yyyy/MM/dd");
                     var reservationsByDay = db.Reservation.Where(r => r.rsvday == day).ToList();
                     if (reservationsByDay.Any(r => r.username == username && r.rsvday == newReservation.rsvday && r.rsvtime == newReservation.rsvtime))
-                        throw HomeController.CreateResponseExceptionWithMsg(Request, HttpStatusCode.BadRequest, "Ya tienes otra reserva para el mismo día y hora indicada.");
+                        return Request.CreateResponse(HttpStatusCode.BadRequest, "Ya tienes otra reserva para el mismo día y hora indicada.");
                     if (reservationsByDay.Any(r => r.courtId == newReservation.courtId && r.rsvday == newReservation.rsvday && r.rsvtime == newReservation.rsvtime))
-                        throw HomeController.CreateResponseExceptionWithMsg(Request, HttpStatusCode.BadRequest, "Esta pista está reservada para la fecha y hora indicada.");
+                        return Request.CreateResponse(HttpStatusCode.BadRequest, "Esta pista está reservada para la fecha y hora indicada.");
                     var userReservations = db.Reservation.Where(r => r.username == username).ToList();
                     if (userReservations.Count > 3)
-                        throw HomeController.CreateResponseExceptionWithMsg(Request, HttpStatusCode.Conflict, "Solo puedes realizar un máximo de 4 reservas.");
+                        return Request.CreateResponse(HttpStatusCode.Conflict, "Solo puedes realizar un máximo de 4 reservas.");
                     try
                     {
                         db.Reservation.Add(newReservation);
@@ -99,7 +98,7 @@ namespace PadelApiRest.Controllers
                     }
                     catch (Exception e)
                     {
-                        throw HomeController.CreateResponseExceptionWithMsg(Request, HttpStatusCode.InternalServerError, string.Format("{0} - {1}", ERROR, e.Message));
+                        return Request.CreateResponse(HttpStatusCode.InternalServerError, string.Format("{0} - {1}", ERROR, e.Message));
                     }
                 }
             }
@@ -113,20 +112,17 @@ namespace PadelApiRest.Controllers
             try
             {
                 var reserva = db.Reservation.Where(r => r.rsvId == id && r.User.username == username).FirstOrDefault();
-                if (reserva != null)
-                {
-                    db.Reservation.Remove(reserva);
-                    db.SaveChanges();
-                }
-                else
-                    throw HomeController.CreateResponseExceptionWithMsg(Request, HttpStatusCode.NotFound, "reserva no encontrada");
+                if (reserva == null)
+                    return Request.CreateResponse(HttpStatusCode.NotFound, "reserva no encontrada");
+                db.Reservation.Remove(reserva);
+                db.SaveChanges();
+                response.StatusCode = HttpStatusCode.NoContent;
+                return response;
             }
             catch (Exception e)
             {
-                throw HomeController.CreateResponseExceptionWithMsg(Request, HttpStatusCode.InternalServerError, string.Format("{0} - {1}", ERROR, e.Message));
+                return Request.CreateResponse(HttpStatusCode.InternalServerError, string.Format("{0} - {1}", ERROR, e.Message));
             }
-            response.StatusCode = HttpStatusCode.NoContent;
-            return response;
         }
 
         [AcceptVerbs("DELETE")]
@@ -136,20 +132,17 @@ namespace PadelApiRest.Controllers
             try
             {
                 var reservas = db.Reservation.Where(r => r.User.username == username).ToList();
-                if (reservas.Count > 0)
-                {
-                    db.Reservation.RemoveRange(reservas);
-                    db.SaveChanges();
-                }
-                else
-                    throw HomeController.CreateResponseExceptionWithMsg(Request, HttpStatusCode.NotFound, "no hay reservas a tu nombre");
+                if (reservas.Count == 0)
+                    return Request.CreateResponse(HttpStatusCode.NotFound, "no hay reservas a tu nombre");
+                db.Reservation.RemoveRange(reservas);
+                db.SaveChanges();
+                response.StatusCode = HttpStatusCode.NoContent;
+                return response;
             }
             catch (Exception e)
             {
-                throw HomeController.CreateResponseExceptionWithMsg(Request, HttpStatusCode.InternalServerError, string.Format("{0} - {1}", ERROR, e.Message));
+                return Request.CreateResponse(HttpStatusCode.InternalServerError, string.Format("{0} - {1}", ERROR, e.Message));
             }
-            response.StatusCode = HttpStatusCode.NoContent;
-            return response;
         }
     }
 }
